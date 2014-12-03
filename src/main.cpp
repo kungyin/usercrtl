@@ -548,7 +548,7 @@ bool getUserFromFile(string &line,
     str = str.substr(str.find(USERCTL_SPLITE) + 1);
     strcpy(pUser->pw_gecos, str.c_str());
 
-    sprintf(pUser->pw_dir, "/home/%s", pUser->pw_name);
+    sprintf(pUser->pw_dir, "/home/homes/%s", pUser->pw_name);
     strcpy(pUser->pw_shell, "/bin/sh");
 
     return bRet;
