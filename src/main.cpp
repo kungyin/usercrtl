@@ -65,6 +65,8 @@ void usage()
 		"usage:\n"
         "userctl add $(filename)\n"
 		"userctl remove $(filename)\n"
+        "userctl printgroup\n"
+        "userctl printmember $(groupname)\n"
 		//"userctl export\n"
         "\n"    
 	);
@@ -99,6 +101,30 @@ static char *crypt_make_salt()
 	return result;
 }
 
+/* return value:
+   true: is a link
+   false: is not a link */
+bool getFilePath(string sourcePath, string &targetPath, string &targetTempPath) {
+
+    bool ret = false;
+    char buf[MAX_STRING_SIZE];
+    memset(buf, 0, sizeof(buf));
+    ssize_t count = readlink(sourcePath.c_str(), buf, sizeof(buf));
+
+    if (count == -1) {
+        targetPath = sourcePath;
+        targetTempPath = sourcePath + ".tmp";
+        ret = false;
+    }
+    else {
+        targetPath = buf;
+        targetTempPath = string(buf) + ".tmp";
+        ret = true;
+    }
+
+    return ret;
+}
+
 /* 
    return value:
    0: failed
@@ -110,8 +136,10 @@ int addUser(struct passwd *pUser) {
 	struct passwd *pwp, pws;
 	int iStatus = 1;
 
-	//unlink("/etc/passwd");
-	fto = fopen(PASSWD_TEMPFILE, "w");
+    string passwdFile, tmpFile;
+    getFilePath(PASSWD_FILEPATH, passwdFile, tmpFile);
+
+    fto = fopen(tmpFile.c_str(), "w"); 
 	if (fto) {
         setpwent();
         for(; (pwp = getpwent()) != NULL;) {
@@ -129,7 +157,7 @@ int addUser(struct passwd *pUser) {
 
         endpwent();
 		fclose(fto);
-		rename(PASSWD_TEMPFILE, PASSWD_FILEPATH);
+		rename(tmpFile.c_str(), passwdFile.c_str());
 	}
     else 
         return 0;
@@ -148,7 +176,10 @@ int removeUser(struct passwd *pUser) {
 	struct passwd *pwp;
 	int iStatus = 2;
 
-	fto = fopen(PASSWD_TEMPFILE, "w");
+    string passwdFile, tmpFile;
+    getFilePath(PASSWD_FILEPATH, passwdFile, tmpFile);
+
+	fto = fopen(tmpFile.c_str(), "w");
 	if (fto) {
 		for(setpwent(); (pwp = getpwent()) != NULL;) {
 			if (strcmp(pwp->pw_name, pUser->pw_name) == 0) {
@@ -160,7 +191,7 @@ int removeUser(struct passwd *pUser) {
 
         endpwent();
 		fclose(fto);
-		rename(PASSWD_TEMPFILE, PASSWD_FILEPATH);
+		rename(tmpFile.c_str(), passwdFile.c_str());
 	}
     else
         return 0;
@@ -179,37 +210,44 @@ int addToGroup(struct group *pUserGroup) {
 	struct group *gwp, gws;
 	int iStatus = 1;
 
-	//unlink("/etc/passwd");
-	fto = fopen(GROUP_TEMPFILE, "w");
+    string groupFile, tmpFile;
+    getFilePath(GROUP_FILEPATH, groupFile, tmpFile);
+
+	fto = fopen(tmpFile.c_str(), "w");
 	if (fto) {
         setgrent();
         for(; (gwp = getgrent()) != NULL;) {
-            char *needTobeClean = NULL;
+            char *pNeedTobeClean = NULL;
+
             if (strcmp(gwp->gr_name, pUserGroup->gr_name) == 0) {
                 if (pUserGroup->gr_mem) {
-                    int i = 0; 
                     bool bFound = false;
-                    for (; i<MAX_ARRAY_SIZE; i++) {
-                        if (gwp->gr_mem[i] && strlen(gwp->gr_mem[i]) > 0) {
-                            if (strcmp(gwp->gr_mem[i], pUserGroup->gr_mem[0]) == 0) {
+
+                    char **ptr = gwp->gr_mem; 
+                    if (ptr) {
+                        while (*ptr != NULL) {
+                            if (strcmp(*ptr, pUserGroup->gr_mem[0]) == 0) {
                                 bFound = true;
                             }
+                            ptr++;
                         }
-                        else
-                            break;
                     }
+
                     if (!bFound) {
+                        int i = ptr - gwp->gr_mem;
                         gwp->gr_mem[i] = new char[strlen(pUserGroup->gr_mem[0]) + 1]; 
                         strcpy(gwp->gr_mem[i], pUserGroup->gr_mem[0]);
-                        needTobeClean = gwp->gr_mem[i];
+
+                        gwp->gr_mem[i+1] = NULL;
+                        pNeedTobeClean = gwp->gr_mem[i];
                     }
                 }
                 iStatus = 2;
             }
-
             putgrent(gwp, fto);
-            if (needTobeClean) 
-                delete[] needTobeClean; 
+
+            if (pNeedTobeClean) 
+                delete[] pNeedTobeClean;
         }
 
         if (iStatus == 1) {
@@ -219,7 +257,7 @@ int addToGroup(struct group *pUserGroup) {
 
         endgrent();
 		fclose(fto);
-        rename(GROUP_TEMPFILE, GROUP_FILEPATH);
+        rename(tmpFile.c_str(), groupFile.c_str());
 	}
     else 
         return 0;
@@ -238,7 +276,10 @@ bool removeFromGroup(struct group *pUserGroup) {
 	struct group *gwp;
 	int iStatus = 2;
 
-	fto = fopen(GROUP_TEMPFILE, "w");
+    string groupFile, tmpFile;
+    getFilePath(GROUP_FILEPATH, groupFile, tmpFile);
+
+	fto = fopen(tmpFile.c_str(), "w");
 	if (fto) {
 		for(setgrent(); (gwp = getgrent()) != NULL;) {
 			if (strcmp(gwp->gr_name, pUserGroup->gr_name) == 0) {
@@ -246,46 +287,48 @@ bool removeFromGroup(struct group *pUserGroup) {
                 continue;
 			}
 
-            int i = 0; 
             int index = -1;
 
-            for (; i<MAX_ARRAY_SIZE; i++) {
-                if (gwp->gr_mem[i] && strlen(gwp->gr_mem[i]) > 0) {
-                    if (strcmp(gwp->gr_mem[i], pUserGroup->gr_name) == 0) {
-                        index = i;
+            char **ptr = gwp->gr_mem;
+            if (ptr) {
+                while (*ptr != NULL) {
+                    if (strcmp(*ptr, pUserGroup->gr_name) == 0) {
+                        index = ptr - gwp->gr_mem;
                     }
+                    ptr++;
                 }
-                else
-                    break;
             }
-            int iArrSize = i;
+
+            int iArrSize = ptr - gwp->gr_mem;
 
             if (index != -1) {
-                struct group tempGroup = { 
+                struct group newGroup = { 
                     new char[MAX_STRING_SIZE], 
                     new char[MAX_STRING_SIZE], 
                     0, 
                     NULL
                 };
-                strcpy(tempGroup.gr_name, gwp->gr_name);
-                strcpy(tempGroup.gr_passwd, gwp->gr_passwd);
-                tempGroup.gr_gid = gwp->gr_gid;
-                tempGroup.gr_mem = new char*[iArrSize];
+                strcpy(newGroup.gr_name, gwp->gr_name);
+                strcpy(newGroup.gr_passwd, gwp->gr_passwd);
+                newGroup.gr_gid = gwp->gr_gid;
+                newGroup.gr_mem = new char*[iArrSize];
                 //cout << "iArrSize : " << iArrSize << endl; 
                 for (int j=0; j<iArrSize; j++) 
-                    tempGroup.gr_mem[j] = NULL;
+                    newGroup.gr_mem[j] = NULL;
 
+                int newIdx = -1;
                 for (int j=0; j<iArrSize; j++) {
                     if (j==index)
                         continue;
 
-                    int iTempIndex = (j > index) ? j - 1 : j;
-                    tempGroup.gr_mem[iTempIndex] = new char[strlen(gwp->gr_mem[j]) + 1];
-                    strcpy(tempGroup.gr_mem[iTempIndex], gwp->gr_mem[j]);
+                    newIdx = (j > index) ? j - 1 : j;
+                    newGroup.gr_mem[newIdx] = new char[strlen(gwp->gr_mem[j]) + 1];
+                    strcpy(newGroup.gr_mem[newIdx], gwp->gr_mem[j]);
                 }
-
-                putgrent(&tempGroup, fto);
-                deleteAll(NULL, NULL, &tempGroup, NULL);
+                newGroup.gr_mem[newIdx+1] = NULL;
+               
+                putgrent(&newGroup, fto);
+                deleteAll(NULL, NULL, &newGroup, NULL);
             }
             else
                 putgrent(gwp, fto);
@@ -294,12 +337,51 @@ bool removeFromGroup(struct group *pUserGroup) {
         endgrent();
 
 		fclose(fto);
-		rename(GROUP_TEMPFILE, GROUP_FILEPATH);
+		rename(tmpFile.c_str(), groupFile.c_str());
 	}
     else 
         return 0;
 
     return iStatus;
+}
+
+void printGroupList() {
+	FILE *fto;
+	struct group *gwp;
+
+	fto = fopen(GROUP_FILEPATH, "r");
+	if (fto) {
+        setgrent();
+        for(; (gwp = getgrent()) != NULL;) {
+            cout << gwp->gr_name << endl;
+        }
+        endgrent();
+		fclose(fto);
+	}
+}
+
+void printGroupMemberList(string groupName) {
+    FILE *fto;
+    struct group *gwp;
+
+    fto = fopen(GROUP_FILEPATH, "r");
+    if (fto) {
+        setgrent();
+        for(; (gwp = getgrent()) != NULL;) {
+            if (strcmp(gwp->gr_name, groupName.c_str()) == 0) {
+                if (gwp->gr_mem) {
+                    char **ptr = gwp->gr_mem;
+                    while (*ptr != NULL) {
+                        cout << *ptr << endl;
+                        ptr++;
+                    }
+                }
+                break;
+            }
+        }
+        endgrent();
+        fclose(fto);
+    }
 }
 
 /* 
@@ -313,8 +395,10 @@ int addToShadow(struct spwd *pUserShadow) {
 	struct spwd *spwp, spws;
 	int iStatus = 1;
 
-	//unlink("/etc/passwd");
-	fto = fopen(SHADOW_TEMPFILE, "w");
+    string shadowFile, tmpFile;
+    getFilePath(SHADOW_FILEPATH, shadowFile, tmpFile);
+
+	fto = fopen(tmpFile.c_str(), "w");
 	if (fto) {
         setspent();
         for(; (spwp = getspent()) != NULL;) {
@@ -333,7 +417,7 @@ int addToShadow(struct spwd *pUserShadow) {
 
         endspent();
 		fclose(fto);
-		rename(SHADOW_TEMPFILE, SHADOW_FILEPATH);
+		rename(tmpFile.c_str(), shadowFile.c_str());
 	}
     else 
         return 0;
@@ -352,7 +436,10 @@ int removeFromShadow(struct spwd *pUserShadow) {
 	struct spwd *spwp;
 	int iStatus = 2;
 
-	fto = fopen(SHADOW_TEMPFILE, "w");
+    string shadowFile, tmpFile;
+    getFilePath(SHADOW_FILEPATH, shadowFile, tmpFile);
+
+	fto = fopen(tmpFile.c_str(), "w");
 	if (fto) {
 		for(setspent(); (spwp = getspent()) != NULL;) {
 			if (strcmp(spwp->sp_namp, pUserShadow->sp_namp) == 0) {
@@ -364,7 +451,7 @@ int removeFromShadow(struct spwd *pUserShadow) {
 
         endspent();
 		fclose(fto);
-		rename(SHADOW_TEMPFILE, SHADOW_FILEPATH);
+		rename(tmpFile.c_str(), shadowFile.c_str());
 	}
     else
         return 0;
@@ -557,9 +644,20 @@ bool getUserFromFile(string &line,
 int main(int argc, char *argv[])
 {
 
-    if (argc == 3) {
+    if (argc == 2) {
+        char *cmdname = argv[1];
+        if (strcmp(cmdname, CMD_PRINTGROUP) == 0) 
+            printGroupList();
+    }
+    else if (argc == 3) {
 
         char *cmdname = argv[1];
+
+        if (strcmp(cmdname, CMD_PRINTGROUPMEM) == 0) {
+            printGroupMemberList(argv[2]);
+            return 0;
+        }
+
         if ( strcmp(cmdname, CMD_ADDUSER) != 0 && strcmp(cmdname, CMD_REMOVEUSER) != 0 ) {
             usage();
             return 0;
@@ -710,13 +808,14 @@ void deleteAll(struct passwd *pUser,
             delete[] pParentGroup->gr_passwd;
         }
 
-        for (int i=0; i<MAX_ARRAY_SIZE; i++) {
-            if (pParentGroup->gr_mem[i]) {
-                delete[] pParentGroup->gr_mem[i];
+        char **ptr = pParentGroup->gr_mem; 
+        if (ptr) {
+            while (*ptr != NULL) {
+                delete[] *ptr;
+                ptr++;
             }
-            else
-                break;
         }
+
         if (pParentGroup->gr_mem) {
             delete[] pParentGroup->gr_mem;
         }
