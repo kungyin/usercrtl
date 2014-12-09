@@ -11,6 +11,7 @@
 #define CMD_PRINTGROUPMEM   "printmember"
 #define CMD_VERSION         "--version"
 
+#define ETC_PATH            "/etc"
 #define PASSWD_FILEPATH     "/etc/passwd"
 #define GROUP_FILEPATH      "/etc/group"
 #define SHADOW_FILEPATH     "/etc/shadow"

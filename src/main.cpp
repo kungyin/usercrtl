@@ -117,8 +117,12 @@ bool getFilePath(string sourcePath, string &targetPath, string &targetTempPath) 
         ret = false;
     }
     else {
-        targetPath = buf;
-        targetTempPath = string(buf) + ".tmp";
+        string fullpath = buf;
+        if (strncmp(buf, ETC_PATH, sizeof(ETC_PATH)) != 0) {
+            fullpath = string(ETC_PATH) + "/" + fullpath;
+        }
+        targetPath = fullpath; 
+        targetTempPath = fullpath + ".tmp";
         ret = true;
     }
 
