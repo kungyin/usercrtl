@@ -9,6 +9,7 @@
 #define CMD_REMOVEUSER      "remove"
 #define CMD_PRINTGROUP      "printgroup"
 #define CMD_PRINTGROUPMEM   "printmember"
+#define CMD_VERSION         "--version"
 
 #define PASSWD_FILEPATH     "/etc/passwd"
 #define GROUP_FILEPATH      "/etc/group"

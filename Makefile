@@ -20,13 +20,15 @@ INCS= -I./include -I./
 CFLAGS =  -g -Os -march=armv7-a -Wall -std=c++11 -static
 #CFLAGS = -g -Os -Wall -std=c++11
 
-OBJS= src/main.o 
+GIT_DES := $(shell git describe --abbrev=4 --dirty --always --tags)
+GIT_VER := $(shell git rev-list HEAD --count)
+
+OBJS= src/main.o
 
 LIBS += -lcrypt
 #LIBS += -Wl,--start-group -L./lib/ -lMCP -lion -lpthread -lefuse -Wl,--end-group
 
-#DEFINES += -DEMMC_SUPPORT
-#DEFINES += -DUPDATE_8198C_FW
+DEFINES += -DGIT_VERSION=\"$(GIT_DES)\ -\ $(GIT_VER)\"
 CFLAGS += $(INCS) $(DEFINES)
 
 all: subdir userctl

@@ -648,6 +648,10 @@ int main(int argc, char *argv[])
         char *cmdname = argv[1];
         if (strcmp(cmdname, CMD_PRINTGROUP) == 0) 
             printGroupList();
+#ifdef GIT_VERSION
+        else if (strcmp(cmdname, CMD_VERSION) == 0) 
+            cout << GIT_VERSION << endl;
+#endif
     }
     else if (argc == 3) {
 
