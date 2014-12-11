@@ -7,6 +7,7 @@
 
 #define CMD_ADDUSER         "add"
 #define CMD_REMOVEUSER      "remove"
+#define CMD_PRINTUSER       "printuser"
 #define CMD_PRINTGROUP      "printgroup"
 #define CMD_PRINTGROUPMEM   "printmember"
 #define CMD_VERSION         "--version"

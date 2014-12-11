@@ -65,6 +65,7 @@ void usage()
 		"usage:\n"
         "userctl add $(filename)\n"
 		"userctl remove $(filename)\n"
+        "userctl printuser\n"
         "userctl printgroup\n"
         "userctl printmember $(groupname)\n"
 		//"userctl export\n"
@@ -201,6 +202,29 @@ int removeUser(struct passwd *pUser) {
         return 0;
 
     return iStatus;
+}
+
+void printUserList() {
+
+	FILE *fto;
+	struct passwd *pwp;
+
+    fto = fopen(PASSWD_FILEPATH, "r"); 
+	if (fto) {
+        setpwent();
+        for(; (pwp = getpwent()) != NULL;) {
+            if ((pwp->pw_uid == 0 && 
+                 strcmp(pwp->pw_name, "toor") != 0 &&
+                 strcmp(pwp->pw_name, "root") != 0 &&
+                 strcmp(pwp->pw_name, "admin") != 0) ||
+                 pwp->pw_uid >= 1000) {
+                cout << pwp->pw_name << endl;
+            }
+        }
+
+        endpwent();
+		fclose(fto);
+	}
 }
 
 /* 
@@ -357,7 +381,11 @@ void printGroupList() {
 	if (fto) {
         setgrent();
         for(; (gwp = getgrent()) != NULL;) {
-            cout << gwp->gr_name << endl;
+            if (gwp->gr_gid == 0 ||
+                gwp->gr_gid == 100 ||
+                gwp->gr_gid >= 1000) {
+                cout << gwp->gr_name << endl; 
+            }
         }
         endgrent();
 		fclose(fto);
@@ -652,6 +680,8 @@ int main(int argc, char *argv[])
         char *cmdname = argv[1];
         if (strcmp(cmdname, CMD_PRINTGROUP) == 0) 
             printGroupList();
+        else if (strcmp(cmdname, CMD_PRINTUSER) == 0) 
+            printUserList();
 #ifdef GIT_VERSION
         else if (strcmp(cmdname, CMD_VERSION) == 0) 
             cout << GIT_VERSION << endl;
