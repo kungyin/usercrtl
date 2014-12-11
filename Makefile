@@ -28,7 +28,7 @@ OBJS= src/main.o
 LIBS += -lcrypt
 #LIBS += -Wl,--start-group -L./lib/ -lMCP -lion -lpthread -lefuse -Wl,--end-group
 
-DEFINES += -DGIT_VERSION=\"$(GIT_DES)\ -\ rev.$(GIT_VER)\"
+DEFINES += -DGIT_VERSION=\"rev.$(GIT_VER)\ -\ $(GIT_DES)\"
 CFLAGS += $(INCS) $(DEFINES)
 
 all: subdir userctl
