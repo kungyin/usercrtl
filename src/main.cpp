@@ -9,6 +9,7 @@
 #include <unistd.h>
 #include <crypt.h>
 #include <errno.h>
+#include <assert.h>
 
 #include <iostream>
 #include <fstream>
@@ -548,7 +549,7 @@ string getNextField(string str) {
     return str.substr(0, pos);
 }
 
-int getUid(char *username) {
+int getUid(const char *username) {
     struct passwd pwd;
     struct passwd *result;
     char *buf;
@@ -587,7 +588,7 @@ int getUid(char *username) {
     return -1;
 }
 
-int getGid(char *groupName) {
+long getGid(const char *groupName, bool bAutoGen = true) {
     struct group gwd;
     struct group *result;
     char *buf;
@@ -609,17 +610,19 @@ int getGid(char *groupName) {
         return gwd.gr_gid;
     }
 
-    for(int i = GID_START; i <= 65535; i++) {
-        s = getgrgid_r(i, &gwd, buf, bufsize, &result);
-        if (result == NULL) {
-            if (s == 0)
-                ;//printf("Not found\n");
-            else {
-                errno = s;
-                perror("getgrnam_r");
-                return -1;
+    if (bAutoGen) {
+        for (int i = GID_START; i <= 65535; i++) {
+            s = getgrgid_r(i, &gwd, buf, bufsize, &result);
+            if (result == NULL) {
+                if (s == 0)
+                    ;//printf("Not found\n");
+                else {
+                    errno = s;
+                    perror("getgrnam_r");
+                    return -1;
+                }
+                return i;
             }
-            return i;
         }
     }
 
@@ -661,8 +664,12 @@ bool getUserFromFile(string &line,
         parentGroup->gr_gid = getGid(parentGroup->gr_name);
         strcpy(*parentGroup->gr_mem, pUser->pw_name);
     }
-    pUser->pw_gid = pUser->pw_uid;
-    pUserGroup->gr_gid = pUser->pw_uid;
+
+    long everyoneGid = getGid("everyone", false);
+    if (everyoneGid == -1) 
+        bRet = false;
+    pUser->pw_gid = everyoneGid;
+    pUserGroup->gr_gid = pUser->pw_uid; 
 
     str = str.substr(str.find(USERCTL_SPLITE) + 1);
     strcpy(pUser->pw_gecos, str.c_str());
@@ -728,8 +735,11 @@ int main(int argc, char *argv[])
                         addToShadow(&userShadow);
     //                  if( mkdir(user->pw_dir, S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH) != 0 )
     //                      perror("Could not create home folder");
+#ifdef ON_DEVICE
                         createSmbUser(&user, uncryptPasswd);
+#endif
                     }
+                    else assert(0);
 
                     deleteAll(&user, &userGroup, &parentGroup, &userShadow);
                 }
@@ -743,8 +753,12 @@ int main(int argc, char *argv[])
                         removeFromShadow(&userShadow);
     //                  if (rmdir(user->pw_dir) != 0)
     //                      perror("Could not remove home folder");
+#ifdef ON_DEVICE
                         removeSmbUser(&user);
+#endif
                     }
+                    else assert(0);
+
                     deleteAll(&user, &userGroup, &parentGroup, &userShadow);
                 }
             }
