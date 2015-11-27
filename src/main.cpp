@@ -552,7 +552,6 @@ string getNextField(string str) {
 int getUid(const char *username) {
     struct passwd pwd;
     struct passwd *result;
-    char *buf;
     long bufsize;
     int s;
 
@@ -560,11 +559,7 @@ int getUid(const char *username) {
     if (bufsize == -1)          /* Value was indeterminate */
         bufsize = 16384;        /* Should be more than enough */
 
-    buf = (char *)malloc(bufsize);
-    if (buf == NULL) {
-        perror("malloc");
-        return -1;
-    }
+    char buf[bufsize];
 
     s = getpwnam_r(username, &pwd, buf, bufsize, &result);
     if (result != NULL) {
@@ -591,7 +586,6 @@ int getUid(const char *username) {
 long getGid(const char *groupName, bool bAutoGen = true) {
     struct group gwd;
     struct group *result;
-    char *buf;
     long bufsize;
     int s;
 
@@ -599,11 +593,7 @@ long getGid(const char *groupName, bool bAutoGen = true) {
     if (bufsize == -1)          /* Value was indeterminate */
         bufsize = 16384;        /* Should be more than enough */
 
-    buf = (char *)malloc(bufsize);
-    if (buf == NULL) {
-        perror("malloc");
-        return -1;
-    }
+    char buf[bufsize];
 
     s = getgrnam_r(groupName, &gwd, buf, bufsize, &result);
     if (result != NULL) {
